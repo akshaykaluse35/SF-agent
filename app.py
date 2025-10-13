@@ -1,30 +1,32 @@
 from flask import Flask, request, jsonify
 import google.generativeai as genai
-import pinecone
+from pinecone import Pinecone
 import os
 
 app = Flask(__name__)
 
-# --- Initialize clients ---
+# --- Initialize clients once when the application starts ---
 try:
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
     PINECONE_INDEX_NAME = "salesforce-metadata"
 
     genai.configure(api_key=GEMINI_API_KEY)
-    
-    from pinecone import Pinecone
     pc = Pinecone(api_key=PINECONE_API_KEY)
     index = pc.Index(PINECONE_INDEX_NAME)
 
+    # Pre-load the models for efficiency
+    embedding_model = "models/text-embedding-004"
+    generation_model = genai.GenerativeModel('gemini-2.5-flash') # Or your available model
+
     print("Services initialized successfully.")
 except Exception as e:
-    print(f"Error during initialization: {e}")
+    print(f"FATAL: Error during initialization: {e}")
 
 @app.route('/query', methods=['POST'])
 def handle_query():
     """Endpoint to handle questions from Salesforce."""
-    data = request.get_json()
+    data = request.get_json(silent=True)
     if not data or 'question' not in data:
         return jsonify({"error": "Invalid JSON: payload must contain a 'question' key."}), 400
 
@@ -33,21 +35,22 @@ def handle_query():
     try:
         # 1. Embed the user's question
         question_embedding = genai.embed_content(
-            model="models/text-embedding-004",
+            model=embedding_model,
             content=question
         )['embedding']
 
-        # 2. Search Pinecone for context
+        # 2. Search Pinecone for the most relevant context
         query_response = index.query(
             vector=question_embedding,
-            top_k=5,
+            top_k=5, # Get the top 5 most relevant metadata chunks
             include_metadata=True
         )
         context = "".join([match['metadata']['text'] + "\n\n" for match in query_response['matches']])
 
-        # 3. Augment prompt and call Gemini
+        # 3. Build an effective prompt and call Gemini for the final answer
         prompt = f"""
-        Based ONLY on the following Salesforce metadata context, answer the user's question. Answer should not be so big. Create bullet lists so user can get it easily. If the context doesn't contain the answer, say that you don't have information about that specific metadata.
+        You are a helpful Salesforce assistant. Answer the user's question directly and concisely based on the provided context.
+        Do not add greetings or extra advice. Use lists for readability if needed.
 
         CONTEXT:
         {context}
@@ -57,8 +60,8 @@ def handle_query():
 
         ANSWER:
         """
-        model = genai.GenerativeModel('gemini-2.5-flash') # Or your available model
-        response = model.generate_content(prompt)
+        
+        response = generation_model.generate_content(prompt)
         
         return jsonify({"answer": response.text})
 
@@ -67,4 +70,4 @@ def handle_query():
         return jsonify({"error": "An internal error occurred."}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.O', port=int(os.environ.get('PORT', 8080)))
+    app.run(port=int(os.environ.get('PORT', 8080)))
