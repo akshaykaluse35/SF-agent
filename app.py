@@ -47,7 +47,7 @@ def handle_query():
 
         # 3. Augment prompt and call Gemini
         prompt = f"""
-        Based ONLY on the following Salesforce metadata context, answer the user's question. If the context doesn't contain the answer, say that you don't have information about that specific metadata.
+        Based ONLY on the following Salesforce metadata context, answer the user's question. Answer should not be so big. Create bullet lists so user can get it easily. If the context doesn't contain the answer, say that you don't have information about that specific metadata.
 
         CONTEXT:
         {context}
