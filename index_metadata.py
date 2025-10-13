@@ -9,6 +9,7 @@ GEMINI_API_KEY = "AIzaSyB2Dkt1nV-6ojN9-8PYQPoYp6bi9zH9n-E"
 PINECONE_API_KEY = "pcsk_3Km89c_MhsUQse9XxNEY4VPbT52nhrCqKJEiH6eAuGyFwmw8wHxvT3QdcQR3vtqaeRW5ZK"
 PINECONE_INDEX_NAME = "salesforce-metadata" # Make sure this matches your Pinecone index name
 
+
 # --- 2. INITIALIZE SERVICES ---
 print("Initializing services...")
 genai.configure(api_key=GEMINI_API_KEY)
@@ -29,16 +30,19 @@ print("Pinecone index is ready.")
 
 # --- 4. PROCESS THE JSON FILES ---
 chunks_to_upsert = []
-files_to_process = ['Lead.json', 'Opportunity.json'] # Add other object JSON files here
+files_to_process = ['Lead.json', 'Opportunity.json']
 
 for filename in files_to_process:
     if os.path.exists(filename):
         print(f"Processing {filename}...")
         with open(filename, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            object_name = data['result']['name']
             
-            for field in data['result']['fields']:
+            # **FIX IS HERE: Removed ['result']**
+            object_name = data['name']
+            
+            # **FIX IS HERE: Removed ['result']**
+            for field in data['fields']:
                 field_name = field['name']
                 field_type = field['type']
                 field_label = field['label']
@@ -51,6 +55,7 @@ for filename in files_to_process:
 print(f"Found {len(chunks_to_upsert)} chunks to process.")
 
 def embed_content(text_chunk):
+    # (Embedding function is the same)
     try:
         result = genai.embed_content(model="models/text-embedding-004", content=text_chunk)
         return result['embedding']
