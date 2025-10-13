@@ -48,9 +48,13 @@ def handle_query():
         context = "".join([match['metadata']['text'] + "\n\n" for match in query_response['matches']])
 
         # 3. Build an effective prompt and call Gemini for the final answer
-        prompt = f"""
-        You are a helpful Salesforce assistant. Answer the user's question directly and concisely based on the provided context.
-        Do not add greetings or extra advice. Use lists for readability if needed.
+         prompt = f"""
+        You are a factual database engine for Salesforce metadata.
+        Your task is to answer the user's question based ONLY on the provided context.
+        - Answer only what is asked.
+        - Do NOT add any greetings, explanations, or sales insights.
+        - If the question asks for a list, provide a simple bulleted list.
+        - Be as brief and direct as possible.
 
         CONTEXT:
         {context}
@@ -61,7 +65,8 @@ def handle_query():
         ANSWER:
         """
         
-        response = generation_model.generate_content(prompt)
+        model = genai.GenerativeModel('gemini-2.5-flash') # Or your available model
+        response = model.generate_content(prompt)
         
         return jsonify({"answer": response.text})
 

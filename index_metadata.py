@@ -2,7 +2,6 @@ import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
 import os
 import json
-from bs4 import BeautifulSoup
 import time
 
 # --- 1. CONFIGURE YOUR KEYS AND SETTINGS ---
@@ -33,16 +32,26 @@ base_path = 'force-app/main/default/'
 
 # --- 4. PROCESS OBJECT/FIELD METADATA (from JSON) ---
 print("Processing Object and Field metadata...")
-files_to_process = ['Lead.json', 'Opportunity.json']
+files_to_process = ['Lead.json', 'Opportunity.json'] # Add other object JSON files here
 for filename in files_to_process:
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf-8') as f:
             data = json.load(f)
             object_name = data['name']
+            
+            # --- NEW SUMMARY CHUNK ---
+            field_count = len(data['fields'])
+            summary_id = f"{object_name}-summary"
+            summary_text = f"The Salesforce object '{object_name}' has a total of {field_count} fields."
+            chunks_to_upsert.append({"id": summary_id, "text": summary_text})
+            # --- END NEW CHUNK ---
+
+            # Process individual fields
             for field in data['fields']:
                 field_name = field['name']
                 field_type = field['type']
                 field_label = field['label']
+                
                 chunk_id = f"{object_name}-{field_name}"
                 chunk_text = f"In Salesforce, the object '{object_name}' has a field with the API name '{field_name}'. Its label is '{field_label}' and its data type is '{field_type}'."
                 chunks_to_upsert.append({"id": chunk_id, "text": chunk_text})
@@ -50,19 +59,20 @@ for filename in files_to_process:
 # --- 5. PROCESS VALIDATION RULES (from Object XML) ---
 print("Processing Validation Rules...")
 objects_path = os.path.join(base_path, 'objects')
-for object_name in os.listdir(objects_path):
-    object_dir_path = os.path.join(objects_path, object_name)
-    object_meta_file = os.path.join(object_dir_path, f"{object_name}.object-meta.xml")
+if os.path.exists(objects_path):
+    for object_name in os.listdir(objects_path):
+        object_dir_path = os.path.join(objects_path, object_name)
+        object_meta_file = os.path.join(object_dir_path, f"{object_name}.object-meta.xml")
 
-    if os.path.isdir(object_dir_path) and os.path.exists(object_meta_file):
-        with open(object_meta_file, 'r', encoding='utf-8') as file:
-            soup = BeautifulSoup(file.read(), 'xml')
-            for rule in soup.find_all('validationRules'):
-                rule_name = rule.find('fullName').text
-                rule_formula = rule.find('errorConditionFormula').text
-                chunk_id = f"{object_name}-vr-{rule_name}"
-                chunk_text = f"On the '{object_name}' object, there is a validation rule named '{rule_name}' with the formula: {rule_formula}"
-                chunks_to_upsert.append({"id": chunk_id, "text": chunk_text})
+        if os.path.isdir(object_dir_path) and os.path.exists(object_meta_file):
+            with open(object_meta_file, 'r', encoding='utf-8') as file:
+                soup = BeautifulSoup(file.read(), 'xml')
+                for rule in soup.find_all('validationRules'):
+                    rule_name = rule.find('fullName').text
+                    rule_formula = rule.find('errorConditionFormula').text
+                    chunk_id = f"{object_name}-vr-{rule_name}"
+                    chunk_text = f"On the '{object_name}' object, there is a validation rule named '{rule_name}' with the formula: {rule_formula}"
+                    chunks_to_upsert.append({"id": chunk_id, "text": chunk_text})
 
 # --- 6. PROCESS FLOWS (from Flow XML) ---
 flows_path = os.path.join(base_path, 'flows')
