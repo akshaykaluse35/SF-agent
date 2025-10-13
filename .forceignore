@@ -10,3 +10,8 @@ package.xml
 
 # LWC Jest
 **/__tests__/**
+
+
+# Ignore problematic standard quick actions
+force-app/main/default/quickActions/GuestCommunityCase.quickAction-meta.xml
+force-app/main/default/quickActions/NewCommunityCase.quickAction-meta.xml
