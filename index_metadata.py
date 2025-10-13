@@ -2,6 +2,7 @@ import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
 import os
 import json
+from bs4 import BeautifulSoup
 import time
 
 # --- 1. CONFIGURE YOUR KEYS AND SETTINGS ---
@@ -32,19 +33,18 @@ base_path = 'force-app/main/default/'
 
 # --- 4. PROCESS OBJECT/FIELD METADATA (from JSON) ---
 print("Processing Object and Field metadata...")
-files_to_process = ['Lead.json', 'Opportunity.json'] # Add other object JSON files here
+files_to_process = ['Lead.json', 'Opportunity.json']
 for filename in files_to_process:
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf-8') as f:
             data = json.load(f)
             object_name = data['name']
             
-            # --- NEW SUMMARY CHUNK ---
+            # Create summary chunk
             field_count = len(data['fields'])
             summary_id = f"{object_name}-summary"
             summary_text = f"The Salesforce object '{object_name}' has a total of {field_count} fields."
             chunks_to_upsert.append({"id": summary_id, "text": summary_text})
-            # --- END NEW CHUNK ---
 
             # Process individual fields
             for field in data['fields']:
