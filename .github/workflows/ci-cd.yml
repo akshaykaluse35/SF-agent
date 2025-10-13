@@ -1,6 +1,5 @@
 name: Salesforce CI/CD and AI Indexing
 
-# This workflow runs on every push to the 'main' branch
 on:
   push:
     branches: [ "main" ]
@@ -9,35 +8,29 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Checks out your repository code
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # Step 2: Set up Python for our indexing script
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      # Step 3: Install the official Salesforce CLI
       - name: Install Salesforce CLI
         run: npm install --global @salesforce/cli
 
-      # Step 4: Authenticate to your Salesforce org using a secret
       - name: Authenticate to Salesforce Org
         run: echo "${{ secrets.SFDX_URL }}" > sfdx_auth.txt && sf org login sfdx-url --sfdx-url-file sfdx_auth.txt --alias my-org
 
-      # Step 5: Deploy the metadata to your org
       - name: Deploy to Org
         run: sf project deploy start --target-org my-org
 
-      # Step 6: Install Python dependencies for the indexing script
       - name: Install Python Dependencies
         run: pip install beautifulsoup4 google-generativeai pinecone-client lxml
 
-      # Step 7: Run the indexing script if deployment was successful
       - name: Run Metadata Indexing Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
-        run: venv/bin/python index_metadata.py
+        # THE ONLY CHANGE IS HERE:
+        run: python index_metadata.py
