@@ -1,4 +1,4 @@
-#import google.generativeai as genai
+import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
 import os
 import json
