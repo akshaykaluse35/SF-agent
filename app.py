@@ -13,13 +13,19 @@ try:
     PINECONE_INDEX_NAME = "salesforce-metadata"
 
     genai.configure(api_key=GEMINI_API_KEY)
-    
     pc = Pinecone(api_key=PINECONE_API_KEY)
     index = pc.Index(PINECONE_INDEX_NAME)
 
-    # Pre-load models for efficiency
     embedding_model = "models/text-embedding-004"
     generation_model = genai.GenerativeModel('gemini-2.5-flash') # Or your available model
+
+    # Define safety settings to be less strict
+    safety_settings = {
+        'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+        'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+        'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
+        'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+    }
 
     print("Services initialized successfully.")
 except Exception as e:
@@ -53,7 +59,7 @@ def handle_query():
         ANSWER:
         """
         
-        response = generation_model.generate_content(prompt)
+        response = generation_model.generate_content(prompt, safety_settings=safety_settings)
         return jsonify({"answer": response.text})
 
     except Exception as e:
@@ -84,9 +90,8 @@ def handle_predict():
         • Lead Name (Company Name) (Score: X/10): Justification text.
         """
         
-        response = generation_model.generate_content(prompt)
+        response = generation_model.generate_content(prompt, safety_settings=safety_settings)
         
-        # Parse the text response into structured JSON
         leads = []
         pattern = re.compile(r"•\s(.*?)\s\((.*?)\)\s\(Score:\s(\d{1,2})/10\):\s(.*?)(?=\n•|\Z)", re.DOTALL)
         matches = pattern.findall(response.text)
