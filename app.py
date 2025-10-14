@@ -17,7 +17,7 @@ except Exception as e:
 def parse_gemini_response(text):
     """Parses the text output from Gemini to extract structured lead data."""
     leads = []
-    # Regex to find patterns like: • Name (Company) (Score: X/10): Justification
+    # Regex to find patterns like: • Lead Name (Company Name) (Score: X/10): Justification
     pattern = re.compile(r"•\s(.*?)\s\((.*?)\)\s\(Score:\s(\d{1,2})/10\):\s(.*?)(?=\n•|\Z)", re.DOTALL)
     
     matches = pattern.findall(text)
@@ -46,16 +46,16 @@ def handle_predict():
         prompt = f"""
         You are an expert sales data analyst. Your goal is to identify which new leads are most likely to convert successfully based on historical data.
 
-        1.  First, here is a list of our successfully converted leads (winners):
-            {winners_json}
+        1. First, here is a list of our successfully converted leads (winners):
+           {winners_json}
 
-        2.  Next, here is a list of our unconverted leads (losers):
-            {losers_json}
+        2. Next, here is a list of our unconverted leads (losers):
+           {losers_json}
 
-        3.  Based on the differences between the winners and losers, identify the key characteristics of a successful lead for our business.
+        3. Based on the differences between the winners and losers, identify the key patterns and characteristics of a successful lead for our business.
 
-        4.  Finally, analyze this list of new, open leads (candidates). Based on the patterns you identified, score each one from 1 to 10 on their likelihood to convert. Provide a one-sentence justification for each score.
-            {candidates_json}
+        4. Finally, analyze this list of new, open leads (candidates). Based on the patterns you identified, score each one from 1 to 10 on their likelihood to convert. Provide a one-sentence justification for each score.
+           {candidates_json}
         
         VERY IMPORTANT: Format your response as a simple bulleted list. For each lead, use this exact format:
         • Lead Name (Company Name) (Score: X/10): Justification text.
