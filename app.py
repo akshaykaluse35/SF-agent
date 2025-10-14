@@ -1,71 +1,72 @@
 from flask import Flask, request, jsonify
 import google.generativeai as genai
-from pinecone import Pinecone
 import os
+import re
 
 app = Flask(__name__)
 
 # --- Initialize clients ---
 try:
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-    PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
-    PINECONE_INDEX_NAME = "salesforce-metadata"
-
     genai.configure(api_key=GEMINI_API_KEY)
-    
-    pc = Pinecone(api_key=PINECONE_API_KEY)
-    index = pc.Index(PINECONE_INDEX_NAME)
-
+    generation_model = genai.GenerativeModel('gemini-1.5-flash-latest')
     print("Services initialized successfully.")
 except Exception as e:
     print(f"Error during initialization: {e}")
 
-@app.route('/query', methods=['POST'])
-def handle_query():
-    """Endpoint to handle questions from Salesforce."""
-    data = request.get_json(silent=True)
-    if not data or 'question' not in data:
-        return jsonify({"error": "Invalid JSON: payload must contain a 'question' key."}), 400
+def parse_gemini_response(text):
+    """Parses the text output from Gemini to extract structured lead data."""
+    leads = []
+    # Regex to find patterns like: • Name (Company) (Score: X/10): Justification
+    pattern = re.compile(r"•\s(.*?)\s\((.*?)\)\s\(Score:\s(\d{1,2})/10\):\s(.*?)(?=\n•|\Z)", re.DOTALL)
+    
+    matches = pattern.findall(text)
+    
+    for match in matches:
+        leads.append({
+            "name": match[0].strip(),
+            "company": match[1].strip(),
+            "score": match[2].strip(),
+            "justification": match[3].strip()
+        })
+    return leads
 
-    question = data['question']
+@app.route('/predict', methods=['POST'])
+def handle_predict():
+    """Endpoint to handle lead prediction requests from Salesforce."""
+    data = request.get_json(silent=True)
+    if not data or 'candidates' not in data:
+        return jsonify({"error": "Invalid JSON: payload must contain 'candidates' key."}), 400
+
+    winners_json = data.get('winners', [])
+    losers_json = data.get('losers', [])
+    candidates_json = data.get('candidates', [])
 
     try:
-        # 1. Embed the user's question
-        question_embedding = genai.embed_content(
-            model="models/text-embedding-004",
-            content=question
-        )['embedding']
-
-        # 2. Search Pinecone for context
-        query_response = index.query(
-            vector=question_embedding,
-            top_k=5,
-            include_metadata=True
-        )
-        context = "".join([match['metadata']['text'] + "\n\n" for match in query_response['matches']])
-
-        # 3. Augment prompt and call Gemini
         prompt = f"""
-You are a factual database engine for Salesforce metadata.
-Your task is to answer the user's question based ONLY on the provided context.
-- Answer only what is asked.
-- Do NOT add any greetings, explanations, or sales insights.
-- If the question asks for a list, provide a simple bulleted list.
-- Be as brief and direct as possible.
+        You are an expert sales data analyst. Your goal is to identify which new leads are most likely to convert successfully based on historical data.
 
-CONTEXT:
-{context}
+        1.  First, here is a list of our successfully converted leads (winners):
+            {winners_json}
 
-QUESTION:
-{question}
+        2.  Next, here is a list of our unconverted leads (losers):
+            {losers_json}
 
-ANSWER:
-"""
+        3.  Based on the differences between the winners and losers, identify the key characteristics of a successful lead for our business.
+
+        4.  Finally, analyze this list of new, open leads (candidates). Based on the patterns you identified, score each one from 1 to 10 on their likelihood to convert. Provide a one-sentence justification for each score.
+            {candidates_json}
         
-        model = genai.GenerativeModel('gemini-2.5-flash') # Or your available model
-        response = model.generate_content(prompt)
+        VERY IMPORTANT: Format your response as a simple bulleted list. For each lead, use this exact format:
+        • Lead Name (Company Name) (Score: X/10): Justification text.
+        """
         
-        return jsonify({"answer": response.text})
+        response = generation_model.generate_content(prompt)
+        
+        # Parse the text response into structured JSON
+        predicted_leads = parse_gemini_response(response.text)
+        
+        return jsonify(predicted_leads)
 
     except Exception as e:
         print(f"Error processing request: {e}")
